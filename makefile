@@ -6,7 +6,7 @@ SRC = $(TARGET).m
 CFLAGS = -mmacosx-version-min=10.6
 CFLAGS += -framework Foundation
 CFLAGS += -framework AppKit
-CFLAGS += -framework QTKit
+CFLAGS += -framework AVFoundation
 
 DEBUG = -D DEBUG
 
