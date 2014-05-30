@@ -1,6 +1,8 @@
 /*
  *  Copyright (c) 2012, Daniel Bridges
  *  All rights reserved.
+ * 
+ *  Update: Michael Stöckli 2014 - use AVFoundation
  *
  *  Redistribution and use in source and binary forms, with or without
  *  modification, are permitted provided that the following conditions are met:
@@ -161,15 +163,13 @@ int main(int argc, const char *argv[]) {
     }
     
     printf("Height: %ld\nFPS:    %ld\nInput:  %s\nOutput: %s\n", height, fps, [inputPath UTF8String], [destPath UTF8String]);
-    
+
     NSString *fullFilename;
     NSInteger counter = 0;
     
     AVAssetWriterInput *input;
     AVAssetWriter *writer;
     AVAssetWriterInputPixelBufferAdaptor *adaptor;
-    
-    printf("Working...");
     
     for (NSString *file in imageFiles) {
         
@@ -278,15 +278,17 @@ int main(int argc, const char *argv[]) {
             }
         }
         counter++;
-        
-        printf(".");
     }
     
     [input markAsFinished];
-    [writer finishWriting];
     
-    printf("done.\n");
+    dispatch_semaphore_t latch = dispatch_semaphore_create(0);
+    
+    [writer finishWritingWithCompletionHandler:^{
+        dispatch_semaphore_signal(latch);
+    }];
+    
+    dispatch_semaphore_wait(latch, DISPATCH_TIME_FOREVER);
     
     return 0;
 }
-
