@@ -1,7 +1,7 @@
 /*
  *  Copyright (c) 2012, Daniel Bridges
  *  All rights reserved.
- * 
+ *
  *  Update: Michael Stöckli 2014 - use AVFoundation
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -66,10 +66,10 @@ int main(int argc, const char *argv[]) {
     
     NSString *destPath;
     NSString *inputPath;
-	NSArray *imageFiles;
-	NSError *err = nil;
+    NSArray *imageFiles;
+    NSError *err = nil;
     
-	BOOL isDir;
+    BOOL isDir;
     BOOL reverseArray;
     
     NSUserDefaults *args = [NSUserDefaults standardUserDefaults];
@@ -136,7 +136,7 @@ int main(int argc, const char *argv[]) {
         fprintf(stderr, "%s","Error: Input directory does not exist.\n"
                 "Try 'tlassemble --help' for more information.\n");
         return 1;
-	}
+    }
     
     NSPredicate *testForImageFile = [NSPredicate predicateWithBlock:^BOOL(id file, NSDictionary *bindings) {
         return [[file pathExtension] caseInsensitiveCompare:@"jpeg"] == NSOrderedSame ||
@@ -163,7 +163,7 @@ int main(int argc, const char *argv[]) {
     }
     
     printf("Height: %ld\nFPS:    %ld\nInput:  %s\nOutput: %s\n", height, fps, [inputPath UTF8String], [destPath UTF8String]);
-
+    
     NSString *fullFilename;
     NSInteger counter = 0;
     
@@ -179,7 +179,13 @@ int main(int argc, const char *argv[]) {
         fullFilename = [inputPath stringByAppendingPathComponent:file];
         
         CGDataProviderRef dataProvider = CGDataProviderCreateWithFilename([fullFilename UTF8String]);
-        CGImageRef image = CGImageCreateWithJPEGDataProvider(dataProvider, NULL, NO, kCGRenderingIntentDefault);
+        
+        CGImageRef image;
+        if ([[file pathExtension] caseInsensitiveCompare:@"png"] == NSOrderedSame) {
+            image = CGImageCreateWithPNGDataProvider(dataProvider, NULL, NO, kCGRenderingIntentDefault);
+        } else {
+            image = CGImageCreateWithJPEGDataProvider(dataProvider, NULL, NO, kCGRenderingIntentDefault);
+        }
         
         if (counter == 0) {
             
@@ -292,3 +298,4 @@ int main(int argc, const char *argv[]) {
     
     return 0;
 }
+
