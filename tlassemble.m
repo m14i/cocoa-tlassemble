@@ -25,18 +25,11 @@
  *  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.*
  */
 
-#ifdef DEBUG
-#define DLOG(fmt, args...) NSLog(@"%s:%d "fmt,__FILE__,__LINE__,args)
-#else
-#define DLOG(fmt, args...)
-#endif
-
 #include <stdio.h>
 
 #import <Foundation/Foundation.h>
 #import <AVFoundation/AVFoundation.h>
 #import <AppKit/AppKit.h>
-#import <QTKit/QTKit.h>
 
 void usage() {
     fprintf(stderr, "%s","Usage: tlassemble INPUTDIRECTORY OUTPUTFILENAME [OPTIONS]\n"
@@ -47,21 +40,15 @@ void help() {
     printf("%s","\nUsage: tlassemble INPUTDIRECTORY OUTPUTFILENAME [OPTIONS]\n\n"
            "EXAMPLES\n"
            "tlassemble ./images time_lapse.mov\n"
-           "tlassemble ./images time_lapse.mov -fps 30 -height 720 -codec h264 -quality high\n"
-           "tlassemble ./images time_lapse.mov -quiet yes\n\n"
+           "tlassemble ./images time_lapse.mov -fps 30 -height 720\n\n"
            "OPTIONS\n"
            "-fps: Frames per second for final movie can be anywhere between 0.1 and 60.0.\n"
            "-height: If specified images are resized proportionally to height given.\n"
-           "-codec: Codec to use to encode can be 'h264' 'photojpeg' 'raw' or 'mpv4'.\n"
-           "-quality: Quality to encode with can be 'high' 'normal' 'low'.\n"
-           "-quiet: Set to 'yes' to suppress output during encoding.\n"
            "-reverse: Set to 'yes' to reverse the order that images are displayed in the movie.\n"
            "\n"
            "DEFAULTS\n"
            "fps = 30\n"
            "height = original image size\n"
-           "codec = h264\n"
-           "quality = high\n\n"
            "INFO\n"
            "- Images should be no larger than 1920 x 1080 pixels.\n"
            "- Images have to be jpegs and have the extension '.jpg' or '.jpeg' (case insensitive).\n\n"
@@ -69,30 +56,20 @@ void help() {
            "This software is provided in the hope that it will be useful, but without any warranty, without even the implied warranty for merchantability or fitness for a particular purpose. The software is provided as is and its designer is not to be held responsible for any lost data or other corruption.\n\n");
 }
 
+
 int main(int argc, const char *argv[]) {
-    // Command line options:
-    //
-    // codec (h264, mp4v, photojpeg, raw)
-    // fps (between 0.1 and 60)
-    // quality (high, normal, low)
-    // width (resize proportionally)
     
-    int n;
+    NSInteger height;
+    NSInteger fps;
     
-    double height;
-    double fps;
-    NSString *codecSpec;
-    NSString *qualitySpec;
     NSString *destPath;
     NSString *inputPath;
 	NSArray *imageFiles;
-	NSError *err;
-	err = nil;
+	NSError *err = nil;
+    
 	BOOL isDir;
-    BOOL quiet;
     BOOL reverseArray;
     
-    // Parse command line options
     NSUserDefaults *args = [NSUserDefaults standardUserDefaults];
     if (argc == 2) {
         if (strcmp(argv[1], "--help") == 0 ||
@@ -106,23 +83,9 @@ int main(int argc, const char *argv[]) {
         return 1;
     }
     
-    height = [args doubleForKey:@"height"];
-    fps = [args doubleForKey:@"fps"];
-    codecSpec = [args stringForKey:@"codec"];
-    qualitySpec = [args stringForKey:@"quality"];
-    quiet = [args boolForKey:@"quiet"];
+    height = [args integerForKey:@"height"];
+    fps = [args integerForKey:@"fps"];
     reverseArray = [args boolForKey:@"reverse"];
-    
-    NSDictionary *codec = [NSDictionary dictionaryWithObjectsAndKeys:
-                           @"avc1", @"h264",
-                           @"mpv4", @"mpv4",
-                           @"jpeg", @"photojpeg",
-                           @"raw ", @"raw", nil];
-    
-    NSDictionary *quality = [NSDictionary dictionaryWithObjectsAndKeys:
-                             [NSNumber numberWithLong:codecLowQuality], @"low",
-                             [NSNumber numberWithLong:codecNormalQuality], @"normal",
-                             [NSNumber numberWithLong:codecMaxQuality], @"high", nil];
     
     if (height > 1080) {
         fprintf(stderr, "%s",
@@ -132,39 +95,15 @@ int main(int argc, const char *argv[]) {
         return 1;
     }
     
-    if (fps == 0.0) {
-        fps = 30.0;
+    if (fps == 0) {
+        fps = 30;
     }
     
-    if (fps < 0.1 || fps > 60) {
-        fprintf(stderr, "%s","Error: Framerate must be between 0.1 and 60 fps.\n"
+    if (fps < 1 || fps > 60) {
+        fprintf(stderr, "%s","Error: Framerate must be between 1 and 60 fps.\n"
                 "Try 'tlassemble --help' for more information.\n");
         return 1;
     }
-    
-    if (codecSpec == nil) {
-        codecSpec = @"h264";
-    }
-    
-    if (![[codec allKeys] containsObject:codecSpec]) {
-        usage();
-        return 1;
-    }
-    
-    if (qualitySpec == nil) {
-        qualitySpec = @"high";
-    }
-    
-    if ([[quality allKeys] containsObject:qualitySpec] == NO) {
-        usage();
-        return 1;
-    }
-    
-    DLOG(@"quality: %@",qualitySpec);
-    DLOG(@"codec: %@",codecSpec);
-    DLOG(@"fps: %f",fps);
-    DLOG(@"height: %f",height);
-    DLOG(@"quiet: %i", quiet);
     
     NSFileManager *fileManager = [NSFileManager defaultManager];
     inputPath = [[NSURL fileURLWithPath:[[NSString stringWithUTF8String:argv[1]]
@@ -190,9 +129,6 @@ int main(int argc, const char *argv[]) {
         return 1;
     }
     
-    DLOG(@"Input Path: %@", inputPath);
-    DLOG(@"Destination Path: %@", destPath);
-    
     if ((([fileManager fileExistsAtPath:inputPath isDirectory:&isDir] && isDir) &&
          [fileManager isWritableFileAtPath:inputPath]) == NO) {
         fprintf(stderr, "%s","Error: Input directory does not exist.\n"
@@ -210,7 +146,9 @@ int main(int argc, const char *argv[]) {
     imageFiles = [imageFiles filteredArrayUsingPredicate:testForImageFile];
     imageFiles = [imageFiles sortedArrayUsingSelector:@selector(localizedStandardCompare:)];
     
-    if ([imageFiles count] == 0) {
+    NSInteger numImages = [imageFiles count];
+    
+    if (numImages == 0) {
         fprintf(stderr, "Error: Directory '%s' %s",
                 [[inputPath stringByAbbreviatingWithTildeInPath] UTF8String],
                 "does not contain any jpeg images.\n"
@@ -222,26 +160,21 @@ int main(int argc, const char *argv[]) {
         imageFiles = [[imageFiles reverseObjectEnumerator] allObjects];
     }
     
+    printf("Height: %ld\nFPS:    %ld\nInput:  %s\nOutput: %s\n", height, fps, [inputPath UTF8String], [destPath UTF8String]);
+    
     NSString *fullFilename;
-    int counter = 0;
-    
-    // BEGIN
-    
-    NSDictionary *options = [NSDictionary dictionaryWithObjectsAndKeys:
-                             [NSNumber numberWithBool:YES], kCVPixelBufferCGImageCompatibilityKey,
-                             [NSNumber numberWithBool:YES], kCVPixelBufferCGBitmapContextCompatibilityKey,
-                             nil];
+    NSInteger counter = 0;
     
     AVAssetWriterInput *input;
     AVAssetWriter *writer;
     AVAssetWriterInputPixelBufferAdaptor *adaptor;
     
+    printf("Working...");
+    
     for (NSString *file in imageFiles) {
         
         CGSize frameSize;
         CGRect rectangle;
-        
-        NSLog(@"File name %@.", file);
         
         fullFilename = [inputPath stringByAppendingPathComponent:file];
         
@@ -253,11 +186,27 @@ int main(int argc, const char *argv[]) {
             frameSize = CGSizeMake(CGImageGetWidth(image), CGImageGetHeight(image));
             rectangle = CGRectMake(0, 0, frameSize.width, frameSize.height);
             
-            NSDictionary *settings = [NSDictionary dictionaryWithObjectsAndKeys:
-                                      AVVideoCodecH264, AVVideoCodecKey,
-                                      [NSNumber numberWithUnsignedLong:frameSize.width], AVVideoWidthKey,
-                                      [NSNumber numberWithUnsignedLong:frameSize.height], AVVideoHeightKey,
-                                      nil];
+            NSInteger videoWidth = frameSize.width;
+            NSInteger videoHeight = frameSize.height;
+            
+            if (height != 0) {
+                
+                CGFloat ratio = frameSize.width / frameSize.height;
+                videoWidth = ratio * height;
+                videoHeight = height;
+            }
+            
+            NSDictionary *videoSettings = [NSDictionary dictionaryWithObjectsAndKeys:
+                                           AVVideoCodecH264, AVVideoCodecKey,
+                                           [NSNumber numberWithUnsignedLong:videoWidth], AVVideoWidthKey,
+                                           [NSNumber numberWithUnsignedLong:videoHeight], AVVideoHeightKey,
+                                           nil];
+            
+            NSDictionary *bufferSettings = [NSDictionary dictionaryWithObjectsAndKeys:
+                                            [NSNumber numberWithInt:kCVPixelFormatType_32ARGB], kCVPixelBufferPixelFormatTypeKey,
+                                            [NSNumber numberWithUnsignedLong:frameSize.width], kCVPixelBufferWidthKey,
+                                            [NSNumber numberWithUnsignedLong:frameSize.height], kCVPixelBufferHeightKey,
+                                            nil];
             
             writer = [[AVAssetWriter alloc]
                       initWithURL:[NSURL fileURLWithPath:destPath]
@@ -266,28 +215,28 @@ int main(int argc, const char *argv[]) {
             
             input = [AVAssetWriterInput
                      assetWriterInputWithMediaType:AVMediaTypeVideo
-                     outputSettings:settings];
+                     outputSettings:videoSettings];
             input.expectsMediaDataInRealTime = YES;
             
             adaptor = [AVAssetWriterInputPixelBufferAdaptor
                        assetWriterInputPixelBufferAdaptorWithAssetWriterInput:input
-                       sourcePixelBufferAttributes:nil];
+                       sourcePixelBufferAttributes:bufferSettings];
             
             [writer addInput:input];
             [writer startWriting];
             [writer startSessionAtSourceTime: kCMTimeZero];
         }
         
-        CVPixelBufferRef pxbuffer;
+        CVPixelBufferRef pxbuffer = NULL;
         
         CGColorSpaceRef rgbColorSpace = CGColorSpaceCreateDeviceRGB();
         
-        CVPixelBufferCreate(kCFAllocatorDefault,
-                            frameSize.width,
-                            frameSize.height,
-                            kCVPixelFormatType_32ARGB,
-                            (__bridge CFDictionaryRef)options,
-                            &pxbuffer);
+        CVReturn status = CVPixelBufferPoolCreatePixelBuffer(NULL, adaptor.pixelBufferPool, &pxbuffer);
+        
+        if (status != kCVReturnSuccess) {
+            NSLog(@"Pixel buffer pool error %d.", status);
+            return 1;
+        }
         
         CVPixelBufferLockBaseAddress(pxbuffer, 0);
         
@@ -329,10 +278,14 @@ int main(int argc, const char *argv[]) {
             }
         }
         counter++;
+        
+        printf(".");
     }
     
     [input markAsFinished];
     [writer finishWriting];
+    
+    printf("done.\n");
     
     return 0;
 }
